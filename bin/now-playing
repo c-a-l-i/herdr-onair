@@ -1,0 +1,14 @@
+#!/usr/bin/env python3
+"""herdr top-bar entry: what herdr-onair is playing, or nothing. (Same as `onair now`.)"""
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+try:
+    from onair import core
+    core.remember_root()
+    line = core.now_line()
+    if line:
+        print(line)
+except Exception:
+    pass

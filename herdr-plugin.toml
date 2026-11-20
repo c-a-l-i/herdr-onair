@@ -1,0 +1,100 @@
+# herdr-onair: terminal internet radio for herdr's TUI (the herdr terminal app), in a popup.
+#
+# Search the 50,000+ stations in Radio Browser (plus your own stream links), play one through mpv, and keep
+# listening with the popup closed. Like the song that's playing and it lands in a sorted list for
+# that station. Needs python3 and mpv. See README.md.
+
+id = "herdr-onair"
+name = "herdr-onair"
+version = "0.1.0"
+description = "Terminal internet radio for herdr's TUI: search 50,000+ Radio Browser stations, play through mpv in the background, like songs into a sorted list per station."
+min_herdr_version = "0.9.0"
+platforms = ["linux", "macos"]
+
+[[panes]]
+id = "app"
+title = "radio"
+placement = "popup"
+width = "72%"
+height = "80%"
+command = ["bash", "-c", "exec python3 \"$HERDR_PLUGIN_ROOT/bin/onair\" app"]
+
+# First-time setup: checks what's installed, adds a herdr key and the top-bar line. Opens by itself the
+# first time the radio is opened; run it again from the "setup" action.
+[[panes]]
+id = "setup"
+title = "herdr-onair setup"
+placement = "popup"
+width = 92
+height = 26
+command = ["bash", "-c", "exec python3 \"$HERDR_PLUGIN_ROOT/bin/onair\" setup"]
+
+[[actions]]
+id = "toggle"
+title = "Radio"
+description = "Open the radio popup, or close it if it's open. The radio keeps playing either way."
+contexts = ["workspace"]
+command = ["bash", "-c", "exec python3 \"$HERDR_PLUGIN_ROOT/bin/onair\" toggle"]
+
+[[actions]]
+id = "play-pause"
+title = "Radio: play / pause"
+description = "Pause or resume; starts the last station if nothing is playing."
+contexts = ["workspace"]
+command = ["bash", "-c", "exec python3 \"$HERDR_PLUGIN_ROOT/bin/onair\" play-pause"]
+
+[[actions]]
+id = "next"
+title = "Radio: next station"
+description = "Next station in the list you picked the current one from."
+contexts = ["workspace"]
+command = ["bash", "-c", "exec python3 \"$HERDR_PLUGIN_ROOT/bin/onair\" next"]
+
+[[actions]]
+id = "previous"
+title = "Radio: previous station"
+description = "Previous station in the list you picked the current one from."
+contexts = ["workspace"]
+command = ["bash", "-c", "exec python3 \"$HERDR_PLUGIN_ROOT/bin/onair\" prev"]
+
+[[actions]]
+id = "like"
+title = "Radio: like this song"
+description = "Add the song playing now to this station's liked list."
+contexts = ["workspace"]
+command = ["bash", "-c", "exec python3 \"$HERDR_PLUGIN_ROOT/bin/onair\" like"]
+
+[[actions]]
+id = "volume-up"
+title = "Radio: volume up"
+description = "Volume up one step (5 % unless volume_step says otherwise)."
+contexts = ["workspace"]
+command = ["bash", "-c", "exec python3 \"$HERDR_PLUGIN_ROOT/bin/onair\" up"]
+
+[[actions]]
+id = "volume-down"
+title = "Radio: volume down"
+description = "Volume down one step."
+contexts = ["workspace"]
+command = ["bash", "-c", "exec python3 \"$HERDR_PLUGIN_ROOT/bin/onair\" down"]
+
+[[actions]]
+id = "stop"
+title = "Radio: stop"
+description = "Stop the radio and close mpv."
+contexts = ["workspace"]
+command = ["bash", "-c", "exec python3 \"$HERDR_PLUGIN_ROOT/bin/onair\" stop"]
+
+[[actions]]
+id = "install-commands"
+title = "Radio: install commands"
+description = "Put `onair` and `onair-now-playing` in ~/.local/bin, for desktop hotkeys and herdr's top bar."
+contexts = ["workspace"]
+command = ["bash", "-c", "exec python3 \"$HERDR_PLUGIN_ROOT/bin/onair\" install-commands"]
+
+[[actions]]
+id = "setup"
+title = "Radio: setup"
+description = "Check what's installed, add a herdr key for the radio and the top-bar line."
+contexts = ["workspace"]
+command = ["bash", "-c", "exec \"${HERDR_BIN_PATH:-herdr}\" plugin pane open --plugin herdr-onair --entrypoint setup --placement popup --focus"]

@@ -1,0 +1,171 @@
+#!/usr/bin/env python3
+"""onair: herdr-onair's command line. Internet radio for herdr, played through mpv.
+
+  onair app                 the radio popup (herdr opens it; works in any terminal too)
+  onair toggle              open the popup in herdr, or close it if it's open
+  onair setup               the setup screen (checks, a herdr key, the top-bar line)
+  onair play-pause          pause / resume (plays the last station if nothing is on)
+  onair next | prev         next / previous station in the list you picked from
+  onair up | down           volume +/- (volume_step in settings.conf, default 5 %)
+  onair like                like the song playing now (added to that station's list)
+  onair stop                stop and close mpv
+  onair now                 one line for herdr's top bar ("" when nothing plays)
+  onair play <search>       play the best match (My stations first, then Radio Browser)
+  onair search <search>     print matching stations
+  onair add <link> [name]   save a stream link (direct, .pls or .m3u) to My stations
+  onair remove <name|link>  take a station out of My stations
+  onair mine                list My stations
+  onair likes               where the liked-song lists are, and how many each has
+  onair install-commands [dir]
+                            put `onair` and `onair-now-playing` in dir (default ~/.local/bin) for
+                            desktop hotkeys and herdr's top bar; they keep working after updates
+
+Hotkeys can call these directly (e.g. a desktop key running `onair play-pause`).
+"""
+import os
+import subprocess
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+
+from onair import core  # noqa: E402
+
+HERDR = os.environ.get("HERDR_BIN_PATH") or "herdr"
+
+
+def app_pid():
+    """pid of the open popup app, or None."""
+    try:
+        with open(core.APP_PID) as f:
+            pid = int(f.read().strip())
+        os.kill(pid, 0)
+        cmd = subprocess.run(["ps", "-p", str(pid), "-o", "command="], capture_output=True, text=True).stdout
+    except (OSError, ValueError):
+        return None
+    return pid if "onair" in cmd else None
+
+
+def toggle():
+    if not core.setting("setup_done"):  # first time: setup instead of the radio
+        return subprocess.call([HERDR, "plugin", "pane", "open", "--plugin", core.PLUGIN_ID, "--entrypoint", "setup",
+                                "--placement", "popup", "--focus"], stdout=subprocess.DEVNULL)
+    pid = app_pid()
+    if pid:
+        os.kill(pid, 15)  # the app exits, which closes its popup
+        return 0
+    try:
+        os.unlink(core.APP_PID)
+    except OSError:
+        pass
+    # The popup's size is a setting (popup_width / popup_height).
+    return subprocess.call([HERDR, "plugin", "pane", "open", "--plugin", core.PLUGIN_ID, "--entrypoint", "app",
+                            "--placement", "popup", "--width", core.setting("popup_width"),
+                            "--height", core.setting("popup_height"), "--focus"], stdout=subprocess.DEVNULL)
+
+
+def best_match(query):
+    return core.my_matches(query) or core.radiobrowser_search(query, limit=20)
+
+
+def main(argv):
+    core.remember_root()
+    cmd = argv[0] if argv else "app"
+    rest = " ".join(argv[1:]).strip()
+    try:
+        if cmd == "app":
+            from onair import app
+            app.main()
+        elif cmd == "toggle":
+            return toggle()
+        elif cmd == "setup":
+            from onair import setup
+            setup.main()
+        elif cmd in ("play-pause", "toggle-pause", "pause"):
+            core.toggle_pause()
+        elif cmd == "next":
+            core.step(1)
+        elif cmd in ("prev", "previous"):
+            core.step(-1)
+        elif cmd == "up":
+            core.change_volume(core.int_setting("volume_step"))
+        elif cmd == "down":
+            core.change_volume(-core.int_setting("volume_step"))
+        elif cmd == "like":
+            like, how = core.like_current()
+            if how == "liked":
+                print(f"liked: {like['raw']} ({like['station']})")
+            elif how == "already":
+                print(f"already liked: {like['raw']}")
+            else:
+                print(f"can't like: {how}", file=sys.stderr)
+                return 1
+        elif cmd == "stop":
+            core.stop()
+        elif cmd == "now":
+            try:
+                line = core.now_line()
+            except Exception:
+                line = ""
+            if line:
+                print(line)
+        elif cmd == "play" and rest:
+            hits = best_match(rest)
+            if not hits:
+                print(f"no station matches '{rest}'", file=sys.stderr)
+                return 1
+            core.play(hits[0], hits)
+            print(f"playing {hits[0]['name']} ({hits[0]['source']})")
+        elif cmd == "search" and rest:
+            hits = core.my_matches(rest) + core.radiobrowser_search(rest)
+            for s in hits:
+                kbps = f"{s['bitrate']}k" if s.get("bitrate") else "?"
+                print(f"{s['source']:<13} {kbps:>5} {s.get('country', ''):<3} {s['name']}")
+        elif cmd == "add" and len(argv) >= 2:
+            url, name = argv[1], " ".join(argv[2:])
+            if not url.startswith(("http://", "https://")):
+                print("onair: a stream link starts with http:// or https://", file=sys.stderr)
+                return 2
+            st = core.custom_station(url, name)
+            if core.is_mine(st):
+                print(f"already in My stations: {st['name']}")
+            else:
+                core.toggle_mine(st)
+                print(f"saved to My stations: {st['name']}")
+        elif cmd == "remove" and rest:
+            hits = [m for m in core.load_my() if rest in (m.get("name"), m.get("url"))]
+            if not hits:
+                print(f"onair: no station named '{rest}' in My stations", file=sys.stderr)
+                return 1
+            core.toggle_mine(hits[0])
+            print(f"removed: {hits[0]['name']}")
+        elif cmd == "mine":
+            for m in core.load_my():
+                print(f"{m['name']}\t{m['url']}")
+        elif cmd == "install-commands":
+            target = os.path.expanduser(rest or "~/.local/bin")
+            for path in core.install_commands(target):
+                print(f"wrote {path}")
+            if target not in os.environ.get("PATH", "").split(os.pathsep):
+                print(f"note: {target} isn't on your PATH; use the full paths above")
+        elif cmd == "likes":
+            likes = core.load_likes()
+            print(core.likes_dir())
+            counts = {}
+            for l in likes:
+                counts[l["station"]] = counts.get(l["station"], 0) + 1
+            for name in sorted(counts, key=str.casefold):
+                print(f"  {counts[name]:>4}  {name}")
+        else:
+            print(__doc__.strip(), file=sys.stderr)
+            return 2
+    except core.PlayerError as e:
+        print(f"onair: {e}", file=sys.stderr)
+        return 1
+    except OSError as e:  # network: no internet, directory down
+        print(f"onair: couldn't reach the station directory ({e}). Check your internet connection.", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

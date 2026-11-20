@@ -1,0 +1,29 @@
+# herdr-onair settings. Copy to ~/.config/herdr/plugins/config/herdr-onair/settings.conf
+# (herdr prints the folder with: herdr plugin config-dir herdr-onair). Every line is optional.
+
+# Highlight colour: a terminal colour name (black red green yellow blue magenta cyan white, or
+# bright-<name>), so your terminal theme decides the exact shade. "none" = no colour.
+accent = cyan
+
+# Liked songs: one sorted .txt per station, plus .likes.json (the full record).
+likes_dir = ~/Music/Radio likes
+
+# Hide Radio Browser streams below this bitrate in kbps (0 shows everything).
+min_bitrate = 64
+
+
+# Top-bar marks: nerd (Nerd Font play/pause/radio icons) or plain.
+bar_icons = nerd
+
+# Volume step for + / - and the volume actions, in %.
+volume_step = 5
+
+# Layout: spotlight, classic, framed, sidebar or cards. (v in the popup switches and remembers.)
+layout = spotlight
+
+# Visualizer bars (needs cava): auto shows them when cava is installed, off hides them. (c toggles.)
+visualizer = auto
+
+# Size of the popup: a share of herdr's window ("72%") or a number of cells ("90").
+popup_width = 72%
+popup_height = 80%
