@@ -278,7 +278,10 @@ _rb_server = None
 
 
 def _rb_servers():
-    """Radio Browser API hosts. The project asks clients to find them through DNS, not hard-code one."""
+    """Radio Browser API hosts. The project asks clients to find them through DNS, not hard-code one:
+    resolve all.api.radio-browser.info and name each address by reverse lookup. A name only counts if
+    it still resolves to the addresses it came from (a server's reverse name can outlive its address,
+    as de1's did in November 2026). all.api itself is the last resort."""
     import concurrent.futures
     import random
     names = []
@@ -286,15 +289,18 @@ def _rb_servers():
         infos = socket.getaddrinfo("all.api.radio-browser.info", 443, proto=socket.IPPROTO_TCP)
         ips = sorted({i[4][0] for i in infos})
         with concurrent.futures.ThreadPoolExecutor(4) as pool:
-            for name in pool.map(lambda ip: _reverse(ip), ips):
-                if name and name not in names:
+            found = {}
+            for ip, name in zip(ips, pool.map(_reverse, ips)):
+                if name:
+                    found.setdefault(name, set()).add(ip)
+            candidates = list(found)
+            for name, addrs in zip(candidates, pool.map(_addresses, candidates)):
+                if found[name] <= addrs:
                     names.append(name)
     except OSError:
         pass
     random.shuffle(names)
-    for fallback in ("de1.api.radio-browser.info", "fi1.api.radio-browser.info", "nl1.api.radio-browser.info"):
-        if fallback not in names:
-            names.append(fallback)
+    names.append("all.api.radio-browser.info")
     return names
 
 
@@ -303,6 +309,13 @@ def _reverse(ip):
         return socket.gethostbyaddr(ip)[0]
     except OSError:
         return None
+
+
+def _addresses(name):
+    try:
+        return {i[4][0] for i in socket.getaddrinfo(name, 443, proto=socket.IPPROTO_TCP)}
+    except OSError:
+        return set()
 
 
 def rb_get(path, params, timeout=6):
